@@ -39,12 +39,12 @@ bq mk --location=us sales_dataset
 <img width="1047" height="153" alt="image" src="https://github.com/user-attachments/assets/f9cca333-a018-4cd0-9078-aa97bb6b771b" />
 
 ### 2. Create Cloud Composer Environment
-# ==========================
+```
 gcloud composer environments create composer-gcs-bq \
   --location us-central1 \
   --image-version composer-2.5.0-airflow-2.6.3 \
   --environment-size small
-
+```
 
 
 ### 2-A. IAM Configuration
