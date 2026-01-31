@@ -24,6 +24,13 @@ export PROJECT_ID=$(gcloud config get-value project)
 # Create the Multi-region bucket
 gsutil mb -l us gs://sales-data-lake/
 
+echo "order_id,product,quantity,amount,order_date
+ORD001,Laptop,2,2400.50,2026-01-23
+ORD002,Mouse,5,125.00,2026-01-23
+ORD003,Keyboard,3,210.75,2026-01-23" > sales_20260123.csv
+
+gsutil cp sales_20260123.csv gs://sales-data-lake/input/
+
 # Create BigQuery Dataset
 bq mk --location=us sales_dataset
 
@@ -31,8 +38,16 @@ bq mk --location=us sales_dataset
 
 <img width="1047" height="153" alt="image" src="https://github.com/user-attachments/assets/f9cca333-a018-4cd0-9078-aa97bb6b771b" />
 
+### 2. Create Cloud Composer Environment
+# ==========================
+gcloud composer environments create composer-gcs-bq \
+  --location us-central1 \
+  --image-version composer-2.5.0-airflow-2.6.3 \
+  --environment-size small
 
-### 2. IAM Configuration
+
+
+### 2-A. IAM Configuration
 
 The Cloud Composer Service Account requires permissions to interact with GCS and BigQuery.
 
