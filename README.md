@@ -104,6 +104,7 @@ Once the instance is `RUNNING`, click **View Instance** to open the Data Fusion 
 * Open Wrangler and select your sample file.
 * **Directives:** Apply "Parse as CSV", "Set Column Names", and "Change Type" (e.g., `amount` to `float`).
 
+<img width="1887" height="787" alt="image" src="https://github.com/user-attachments/assets/b7fefdb8-1450-460d-8459-7cd9955d3ffa" />
 
 
 #### **C. Sink (BigQuery)**
@@ -115,6 +116,11 @@ Once the instance is `RUNNING`, click **View Instance** to open the Data Fusion 
 * *Operation:* `Insert` (Append)
 
 
+<img width="1912" height="907" alt="image" src="https://github.com/user-attachments/assets/4e96be49-18ec-4f88-be58-8c385d37325c" />
+
+
+<img width="1903" height="902" alt="image" src="https://github.com/user-attachments/assets/76513e25-6a72-40f1-ad0f-cb8513e03ae3" />
+
 
 ### 4. Deploy and Run
 
@@ -123,6 +129,20 @@ Once the instance is `RUNNING`, click **View Instance** to open the Data Fusion 
 3. Click **Run** to start the manual ingestion.
 
 ---
+
+<img width="1913" height="672" alt="image" src="https://github.com/user-attachments/assets/c31f3507-728b-4268-8c28-9d08cc9d076e" />
+
+<img width="1915" height="645" alt="image" src="https://github.com/user-attachments/assets/1fc495d1-8515-42d7-afae-e5f232409197" />
+
+<img width="1907" height="723" alt="image" src="https://github.com/user-attachments/assets/77ced8f9-20d7-4ada-98dd-1cda78f570fc" />
+
+<img width="1911" height="798" alt="image" src="https://github.com/user-attachments/assets/1febd31e-c55b-4f93-96b6-2f864af4f995" />
+
+<img width="1900" height="783" alt="image" src="https://github.com/user-attachments/assets/589102b0-32bf-4538-8ba0-a18897d97e95" />
+
+<img width="1917" height="808" alt="image" src="https://github.com/user-attachments/assets/b33db49f-7517-4c83-9f6f-980f40206895" />
+
+<img width="1911" height="992" alt="image" src="https://github.com/user-attachments/assets/5b1ca38a-d330-4ea4-85ef-bd630b70c295" />
 
 ## 📂 Repository Structure
 
@@ -143,10 +163,77 @@ Once the instance is `RUNNING`, click **View Instance** to open the Data Fusion 
 
 ---
 
-### Next Step
+To avoid ongoing costs for the Data Fusion instance (which can be expensive even when idle) and clean up your data lake, follow these steps in order.
 
-Would you like me to generate the **BigQuery Schema JSON** and the **Wrangler Directive script** so you can include them in your repository's `/schemas` and `/pipeline` folders?
+### 1. Delete the Data Fusion Instance
 
-[How to load data from Cloud Storage to BigQuery using Data Fusion](https://www.youtube.com/watch?v=b_7NZpw9PVE)
+This is the most important step to stop billing.
 
-This video provides a complete visual walkthrough of the Wrangler and BigQuery sink configuration, which is the most interactive part of the Data Fusion setup.
+```bash
+gcloud beta data-fusion instances delete sales-fusion-instance \
+    --location=us-central1 \
+    --project=psychic-ethos-484710-m3 \
+    --async
+
+```
+
+*Note: Using `--async` returns you to the prompt immediately while the deletion happens in the background. It takes about 15-20 minutes to fully remove.*
+
+---
+
+### 2. Clean Up Storage & Data
+
+Next, remove the raw data bucket and the BigQuery dataset you created.
+
+* **Remove the GCS Bucket:**
+```bash
+# This deletes the bucket and all files inside (input/, temp/, etc.)
+gcloud storage rm --recursive gs://sales-data-lake
+
+```
+
+
+* **Remove the BigQuery Dataset:**
+```bash
+# This deletes the dataset and the sales_data table
+bq rm -r -f -d psychic-ethos-484710-m3:sales_dataset
+
+```
+
+---
+
+#### **Cleanup**
+
+To prevent incurring additional charges to your Google Cloud account, delete the resources used in this project:
+
+1. **Delete Data Fusion:** `gcloud beta data-fusion instances delete sales-fusion-instance --location=us-central1`
+2. **Delete GCS Bucket:** `gcloud storage rm --recursive gs://sales-data-lake`
+3. **Delete BigQuery Dataset:** `bq rm -r -f sales_dataset`
+
+---
+
+---
+
+### 3. Revert IAM Permissions (Optional)
+
+If you want to return your project to its original security state, remove the policy bindings we added.
+
+```bash
+# Remove Service Account User role
+gcloud iam service-accounts remove-iam-policy-binding \
+    212614848326-compute@developer.gserviceaccount.com \
+    --member="serviceAccount:service-212614848326@gcp-sa-datafusion.iam.gserviceaccount.com" \
+    --role="roles/iam.serviceAccountUser"
+
+# Remove Worker roles
+gcloud projects remove-iam-policy-binding psychic-ethos-484710-m3 \
+    --member="serviceAccount:212614848326-compute@developer.gserviceaccount.com" \
+    --role="roles/storage.admin"
+
+gcloud projects remove-iam-policy-binding psychic-ethos-484710-m3 \
+    --member="serviceAccount:212614848326-compute@developer.gserviceaccount.com" \
+    --role="roles/dataproc.worker"
+
+```
+
+
