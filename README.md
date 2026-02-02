@@ -1,11 +1,17 @@
-# 🚀 Sales Data Lakehouse: GCS to BigQuery Pipeline
+# 🚀 Sales Data Lakehouse: GCS to BigQuery (Data Fusion)
 
-This project implements an automated ETL pipeline using **Cloud Composer (Airflow)** to ingest sales data from **Google Cloud Storage (GCS)** into **BigQuery**. It includes data validation, custom monitoring, and automated alerting.
+This repository automates the ingestion of CSV sales data from **Google Cloud Storage (GCS)** into **BigQuery** using **Cloud Data Fusion**. This "No-Code" approach is ideal for complex visual transformations and rapid deployment.
 
+## 🏗 Architecture
+
+1. **Source:** Raw CSV files landed in `gs://sales-data-lake/input/`.
+2. **Transformation:** **Wrangler** plugin used for schema parsing and data cleaning.
+3. **Sink:** Final data appended to `sales_dataset.sales_data` in BigQuery.
+4. **Execution:** On-demand or scheduled Batch Pipeline running on ephemeral Dataproc clusters.
 ## 🛠 Tech Stack
 
 * **Storage:** Google Cloud Storage (`sales-data-lake`)
-* **Orchestration:** Cloud Composer 2 (Airflow 2.6.3)
+* **Orchestration:** Data Fusion
 * **Data Warehouse:** BigQuery
 * **Monitoring:** Cloud Logging & Cloud Monitoring Alerts
 
@@ -38,77 +44,109 @@ bq mk --location=us sales_dataset
 
 <img width="1047" height="153" alt="image" src="https://github.com/user-attachments/assets/f9cca333-a018-4cd0-9078-aa97bb6b771b" />
 
-### 2. Create Cloud Composer Environment
-```
-gcloud composer environments create composer-gcs-bq \
-  --location us-central1 \
-  --image-version composer-2.5.0-airflow-2.6.3 \
-  --environment-size small
-```
+### 2. Create Data-Fusion Environment
 
-
-### 2-A. IAM Configuration
-
-The Cloud Composer Service Account requires permissions to interact with GCS and BigQuery.
-
-```bash
-# Get the SA from your Composer environment
-COMPOSER_SA=$(gcloud composer environments describe <YOUR_ENV> --location <LOCATION> --format="value(config.nodeConfig.serviceAccount)")
-
-# Assign Roles
-gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$COMPOSER_SA" --role="roles/storage.objectViewer"
-gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$COMPOSER_SA" --role="roles/bigquery.dataEditor"
-gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$COMPOSER_SA" --role="roles/bigquery.jobUser"
+Create Instance:
 
 ```
+# Set Project ID
+gcloud config set project [YOUR_PROJECT_ID]
 
-### 3. Deploy the DAG
+# Enable APIs
+gcloud services enable datafusion.googleapis.com storage.googleapis.com bigquery.googleapis.com
 
-Upload the Airflow DAG to your Composer's dedicated GCS folder.
+# Create Data Fusion Instance (Basic Edition)
+gcloud beta data-fusion instances create sales-fusion-instance \
+    --location=us-central1 \
+    --edition=basic
 
-```bash
-gcloud composer environments storage dags import \
-  --environment <ENV_NAME> \
-  --location <LOCATION> \
-  --source dags/gcs_to_bq_pipeline.py
-
+gcloud beta data-fusion instances list --location=us-central1
 ```
 
-### 4. Data Ingestion (Simulated)
 
-Drop a file into the lake to trigger the process (or wait for the daily schedule).
+<img width="1757" height="292" alt="image" src="https://github.com/user-attachments/assets/fa48e744-4e14-4e94-aad8-d5ee4cc3294d" />
 
-```bash
-# Upload sample data
-gsutil cp sample_data/sales_20260124.csv gs://sales-data-lake/input/
 
-```
+### 2. IAM Configuration (Crucial)
 
-### 5. Monitoring & Verification
+Data Fusion needs permission to manage Dataproc clusters and write to BigQuery.
 
-* **Check Data:** Run `SELECT * FROM sales_dataset.sales_data` in the BQ Console.
-* **Logs:** View Airflow logs via the Composer UI for task-level debugging.
-* **Metrics:** Custom metrics are sent to `custom.googleapis.com/gcs_to_bq/pipeline_success`.
+1. Go to **IAM & Admin > IAM** in the Console.
+2. Locate the **Cloud Data Fusion API Service Agent** (usually `service-[PROJECT_NUMBER]@gcp-sa-datafusion.iam.gserviceaccount.com`).
+3. Grant it the **Cloud Data Fusion API Service Agent** role if not present.
+4. Ensure your **Compute Engine Default Service Account** has `roles/bigquery.dataEditor` and `roles/storage.objectViewer`.
+
+
+<img width="1892" height="778" alt="image" src="https://github.com/user-attachments/assets/ccc187b6-e31d-49fe-9d47-4cb7e945efcd" />
+
+Since your Cloud Data Fusion instance is now provisioning, you can prepare your **`gcp-serverless-ingestion`** repository. This README provides a professional, step-by-step guide for a "No-Code" data lake pattern using the **Wrangler** and **BigQuery Sink** plugins.
+
+### 3. Build the Pipeline (Visual Studio)
+
+Once the instance is `RUNNING`, click **View Instance** to open the Data Fusion UI.
+
+<img width="1590" height="412" alt="image" src="https://github.com/user-attachments/assets/475f6ff3-595a-46df-a176-08218e92b178" />
+
+
+#### **A. Source (GCS)**
+
+* Drag the **GCS** source onto the canvas.
+* **Properties:** * *Reference Name:* `Sales_Raw_CSV`
+* *Path:* `gs://sales-data-lake/input/`
+* *Format:* `csv`
+
+<img width="1897" height="956" alt="image" src="https://github.com/user-attachments/assets/d1e5bf4a-7b0d-4acf-8fa1-d74d922949b0" />
+
+
+#### **B. Transform (Wrangler)**
+
+* Connect GCS to a **Wrangler** node.
+* Open Wrangler and select your sample file.
+* **Directives:** Apply "Parse as CSV", "Set Column Names", and "Change Type" (e.g., `amount` to `float`).
+
+
+
+#### **C. Sink (BigQuery)**
+
+* Connect Wrangler to the **BigQuery** sink.
+* **Properties:**
+* *Dataset:* `sales_dataset`
+* *Table:* `sales_data`
+* *Operation:* `Insert` (Append)
+
+
+
+### 4. Deploy and Run
+
+1. Click **Draft** to save.
+2. Click **Deploy** in the top right.
+3. Click **Run** to start the manual ingestion.
 
 ---
 
-## 🚨 Alerting Logic
+## 📂 Repository Structure
 
-The pipeline is integrated with Cloud Monitoring. Alerts are triggered if:
+```text
+.
+├── pipeline/
+│   └── sales_ingestion_v1.json  # Exported Data Fusion pipeline JSON
+├── schemas/
+│   └── sales_schema.json        # BigQuery table schema definition
+└── README.md
 
-1. The DAG fails entirely.
-2. The validation step finds **0 rows** (indicating a source data issue).
-3. An SLA breach occurs (task duration exceeds limits).
+```
 
----
+## 🚨 Troubleshooting
 
-## 🔒 Security
-
-* **Service Accounts:** Uses Least Privilege principle.
-* **Storage:** Public access is disabled on `sales-data-lake`.
+* **Tenant Project Error:** If instance creation fails, run `gcloud beta services identity create --service=datafusion.googleapis.com`.
+* **Dataproc Failures:** Check if your project has enough **Compute Engine CPU Quota** for the ephemeral workers.
 
 ---
 
 ### Next Step
 
-Would you like me to create the `.gitignore` file and a sample `cloud-setup.sh` script to automate all the CLI commands listed above?
+Would you like me to generate the **BigQuery Schema JSON** and the **Wrangler Directive script** so you can include them in your repository's `/schemas` and `/pipeline` folders?
+
+[How to load data from Cloud Storage to BigQuery using Data Fusion](https://www.youtube.com/watch?v=b_7NZpw9PVE)
+
+This video provides a complete visual walkthrough of the Wrangler and BigQuery sink configuration, which is the most interactive part of the Data Fusion setup.
